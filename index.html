@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>StegoBox</title>
+  <style>
+  .panel {
+    padding: 15px;
+    display: inline-block;
+    margin: 10px;
+    box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.3);
+    transform: translate(0px, 0px);
+    transition: all 0.3s;
+    font-family: Arial;
+  }
+
+  img {
+    width: 200px;
+  }
+
+  input {
+    display: inline-block;
+  }
+
+  button {
+    border: none;
+    width: 100px;
+    padding: 5px;
+    background: #1e90ff;
+    color: #fff;
+    margin: 5px;
+    box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.3);
+    transform: translate(0px, 0px);
+    transition: all 0.3s;
+  }
+
+  button:hover,
+  .touchable:hover {
+    box-shadow: -5px 5px 4px rgba(0, 0, 0, 0.3);
+    transform: translate(3px, -3px);
+    cursor: pointer;
+  }
+
+  .selectable {
+    border: 5px solid transparent;
+  }
+
+  .selected {
+    border: 5px solid #1e90ff;
+  }
+
+  h4 {
+    position: relative;
+    margin-left: 25px;
+  }
+
+  h4:before {
+    content: ' ';
+    position: absolute;
+    width: 30px;
+    height: 3px;
+    left: -40px;
+    top: 6px;
+    background: #000;
+  }
+
+  </style>
+</head>
+
+<body>
+  <div class='panel'>
+    <h4>Select your hiding image</h4>
+    <div id='imageSelect' class='selecter'></div>
+    <input type='file' id='imageFile' name='imageFile' />
+    <button id='uploadImage' onclick='uploadFile()'>Upload</button>
+  </div>
+  <div class='panel'>
+    <h4>Enter the text to hide</h4>
+    <textArea id='textToHide' rows="15" cols="50"></textArea>
+    <button id='hide' onclick='hide()'>Hide</button>
+	<div id='hiddenTextImageUrl'></div>
+  </div>
+  <script src="jquery/jquery.min.js"></script>
+  <script>
+  var images = []
+
+  var selectedImage;
+
+  function main() {
+    initImages()
+  }
+  // ---------------------
+  function initImages() {
+    $.get('./cgi-bin/whatImages.sh', function(images2) {
+      images = images2
+      setupImages(images);
+      initSelectables()
+    })
+  }
+  // -------------------------------------
+  // -------------------------------------
+  function setupImages(imgArray) {
+    var select = $('#imageSelect')
+    select.html('')
+    for (var k in imgArray) {
+      console.log(imgArray[k])
+      var img = $('<img>').attr('src', imgArray[k]).attr('alt', imgArray[k])
+      var elm = $('<div>').addClass('panel touchable selectable').append(img).css('padding', '0px')
+      select.append(elm)
+    }
+  }
+  // ---------------------
+  function initSelectables() {
+    $('.selecter').each(function() {
+      var selecter = $(this)
+      selecter.attr('selectedItem', null)
+      selecter.find('.selectable').each(function() {
+        $(this).click(function() {
+          selecter.find('.selectable').each(function() {
+            $(this).removeClass('selected')
+          });
+
+          $(this).addClass('selected')
+          selectedImage = $($(this).children()[0]).attr('src');
+        });
+      });
+    });
+  }
+  // ---------------------
+  function getSelectedItem() {
+    return selectedImage;
+  }
+  // -------------------------------------
+  // -------------------------------------
+  function uploadFile() {
+    var formdata = new FormData();
+
+    var image = $('#imageFile')[0].files[0];
+    console.log(image)
+
+    reader = new FileReader();
+    reader.readAsDataURL(image);
+    formdata.append("images[]", image);
+
+    $.ajax({
+      url: './cgi-bin/uploadImage.sh',
+      type: "POST",
+      data: formdata,
+      processData: false,
+      contentType: false,
+      success: function(res) {
+        console.log('OK')
+        images.push(res.filePath)
+        setupImages(images);
+        initSelectables()
+      },
+      error: function(error) {
+        console.log('ERROR')
+        console.log(error)
+      }
+    });
+  }
+
+  function hide() {
+    var img = getSelectedItem()
+    var text = $('#textToHide').val()
+
+    $.ajax({
+        method: "POST",
+        url: "./cgi-bin/hideImage.sh",
+        data: { image: img, text: text }
+      })
+      .done(function(data) {
+		var link = $('<a>').attr('href',data.filePath).attr('target','_blank').html('Hidden image url (click to see)')
+		$('#hiddenTextImageUrl').html(link)
+      }).fail(function(error) {
+		alert('An error occured while hiding your text. Retry later')
+	  });
+  }
+  // -------------------------------------
+  main()
+
+  </script>
+</body>
+
+</html>
